@@ -30,6 +30,15 @@ const pracSchema = new mongoose.Schema({
     email: String,
     password: String
 });
+const itemsSchema = new mongoose.Schema({
+    name: String,
+    user : {
+        type:mongoose.Schema.Types.ObjectId,
+        ref:"pracSchema"
+    }
+});
+const Item = mongoose.model("Item", itemsSchema);
+
 
 
 // pracSchema.plugin(encrypt,{secret:process.env.SECRET , encryptedFields:["password"]});
@@ -43,10 +52,6 @@ passport.deserializeUser(Prac.deserializeUser());
 
 
 
-const itemsSchema = new mongoose.Schema({
-    name: String
-});
-const Item = mongoose.model("Item", itemsSchema);
 
 const item1 = new Item({
     name: "Item1 trial"
@@ -80,32 +85,37 @@ app.get("/list", function (req, res) {
         main().catch((err) => console.log(err));
 
         async function main() {
-            const myquery = await Item.find({});
-            if (myquery.length === 0) {
-                Item.insertMany(defaultItems);
-                res.redirect("/");
-            }
-            else {
+            const userId = req.user._id;
+            console.log(userId);
+            const myquery = await Item.find({user : userId});
+            // if (myquery.length === 0) {
+            //     Item.insertMany(defaultItems);
+            //     res.redirect("/");
+            // }
+            // else {
 
                 res.render("list1", { listTitle: "Today", newListItems: myquery });
-            }
+            // }
         }
     }
     else {
         res.render("login");
     }
 });
-app.post("/list", function (req, res) {
-    main().catch((err) => console.log(err));
-  
-    async function main() {
-      const itemName = req.body.newItem;
-  
-      const item = new Item({
-        name: itemName
-      });
-        item.save();
+app.post("/list", async function (req, res) {
+    try {
+        const itemName = req.body.newItem;
+
+        const item = new Item({
+            name: itemName,
+            user: req.user._id
+        });
+
+        await item.save();
         res.redirect("/list");
+    } catch (err) {
+        console.log(err);
+        res.redirect("/list"); // Handle errors appropriately
     }
 });
   
@@ -149,29 +159,22 @@ app.post("/register", function (req, res) {
 });
 
 app.post("/login", function (req, res) {
-    main().catch((err) => console.log(err));
+    const prac = new Prac({
+        username: req.body.username,
+        password: req.body.password
+    });
 
-    async function main() {
-        const prac = new Prac({
-            username: req.body.username,
-            password: req.body.password
-        });
-        req.login(prac, function (err) {
-            if (err) {
-                console.log(err);
-            }
-            else {
-                passport.authenticate("local")(req, res, function () {
-                    res.redirect("/list");
-                })
-            }
-        })
-
-
-
-    }
+    req.login(prac, function (err) {
+        if (err) {
+            console.log(err);
+            res.redirect("/login");
+        } else {
+            passport.authenticate("local")(req, res, function () {
+                res.redirect("/list");
+            });
+        }
+    });
 });
-
 
 app.listen(3000, function (req, res) {
     console.log("3000 port in use");
